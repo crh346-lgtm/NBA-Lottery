@@ -1,0 +1,200 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Sep 18 10:19:14 2025
+
+@author: 14153
+"""
+
+from itertools import combinations
+import pandas as pd
+import random
+import Theoretical_weighted_ping_pong_prob as NBA
+import numpy as np
+import secrets
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+numbers = range(1, 15)  # 1 to 14 inclusive
+
+def create_lottery_combos():
+# Define the range of numbers
+    # numbers = range(1, 15)  # 1 to 14 inclusive
+    
+    # Generate all 4-number combinations
+    all_combinations = list(combinations(numbers, 4))
+    return all_combinations
+
+def create_combo_df(combo_list, odds_list):
+    data_list=odds_list
+    num=pd.DataFrame(combo_list)
+    y=0
+    for x in range(0, len(data_list)):
+        # print(x)
+        num.loc[y:y+data_list[x], 'draft_position'] = int(numbers[x])
+        y+=data_list[x]
+    num = num.rename(columns={0: "Num1", 1: "Num2", 2: "Num3",3:"Num4"})
+    return num
+
+def sum_individual_numbers(num):
+    result = {}
+    num=num.sort_values(by='draft_position')
+    # return num
+    other_cols = [c for c in num.columns if c != 'draft_position']
+    
+    for i, val in enumerate(num['draft_position'].unique(), start=1):
+        # Subset rows where main_col == val
+        subset = num[num['draft_position'] == val][other_cols]
+        
+        # Flatten all values into a single list
+        values = subset.values.flatten()
+        
+        # Count how many times each number 1–14 appears
+        counts = {num: (values == num).sum() for num in range(1, 15)}
+        
+        result[i] = counts
+    res_df=pd.DataFrame(result)
+    # return res_df
+    cols = res_df.columns.tolist()
+    cols_new=['Team '+str(x) for x in cols]
+    res_df.columns=cols_new
+    # res_df.to_csv(r'G:\My Drive\NBA_Sloan\lottery_combo_sums.csv', index=True)
+
+    # res_t=res_df.T
+    # print(res_df)
+    return res_df
+
+def calculate_percent(df,r_c=False):
+    if r_c==True:
+        row_sums = df.sum(axis=0)
+        df_normalized = df.div(row_sums, axis=1)
+    row_sums = df.sum(axis=1)
+    df_normalized = df.div(row_sums, axis=0)
+    return df_normalized
+
+def randomize_combinations(combos, odds_list):
+    combos=combos[:1000]
+    random_df=pd.DataFrame([],columns=['Num1', 'Num2','Num3','Num4', 
+                                       'draft_position'])
+    z=1
+    for x in odds_list:
+        o_list=random.sample(combos, x)
+        for y in o_list:
+            combos.remove(y)
+        new_df=pd.DataFrame(o_list, columns=['Num1', 'Num2','Num3','Num4'])
+        new_df['draft_position']=z
+        z+=1
+        random_df=pd.concat([random_df, new_df])
+        random_df=random_df.sort_values(by='Num1')
+    return random_df
+
+def randomize_secrets(combos, odds_list):
+    secure_rand = secrets.SystemRandom()
+    # secure_sample = 
+    combos=combos[:1000]
+    random_df=pd.DataFrame([],columns=['Num1', 'Num2','Num3','Num4', 
+                                       'draft_position'])
+    z=1
+    for x in odds_list:
+        o_list=secure_rand.sample(combos, x)
+        for y in o_list:
+            combos.remove(y)
+        # print(len(combos))
+        new_df=pd.DataFrame(o_list, columns=['Num1', 'Num2','Num3','Num4'])
+        new_df['draft_position']=z
+        # return new_df
+        z+=1
+        # print(z)
+        random_df=pd.concat([random_df, new_df])
+        random_df=random_df.sort_values(by='Num1')
+    return random_df
+
+def odds_tables_wrapper_random(combos, data_list):
+    first=calculate_percent(sum_individual_numbers(randomize_combinations(combos, data_list)))
+    second=first.T
+    second.loc['Shannon Free Energy']=(-second[second > 0] * np.log2(second[second > 0])).sum()
+    second.loc['Hill Number']=2**second.loc['Shannon Free Energy']
+    return second
+
+def odds_tables_wrapper_standard(combos, data_list):
+    first=calculate_percent(sum_individual_numbers(create_combo_df(combos, data_list)))
+    second=first.T
+    second.loc['Shannon Free Energy']=(-second[second > 0] * np.log2(second[second > 0])).sum()
+    second.loc['Hill Number']=2**second.loc['Shannon Free Energy']
+    return second
+
+def bootstrap_random(num, data_list):
+    secret_list=[]
+    for x in range(0, num):
+        secret_list.append(odds_tables_wrapper_random(create_lottery_combos(), data_list))
+    return secret_list
+    # print(secure_sample)
+# def calculate_percent_col(df)
+# for x in numbers:
+#     test=num[num['draft_position']==x]
+    
+def strip_and_box_plots(df_list, original_df, row, y_lim):
+    row_name = row
+    row_values = [df.loc[row_name] for df in df_list]
+    orig=pd.DataFrame([original_df.loc[row_name]])
+    combined = pd.DataFrame(row_values, index=[f"run{i+1}" for i in range(len(df_list))])
+    long = combined.reset_index().melt(id_vars="index", var_name="Column", value_name="Value")
+    long2 = orig.reset_index().melt(id_vars="index", var_name="Column", value_name="Value")
+    long = long.rename(columns={"index": "DataFrame"})
+    
+    # Plot boxplot
+    # sns.boxplot(x="Column", y="Value", data=long, color="lightblue")
+    
+    # Overlay stripplot (points for each DataFrame)
+    sns.stripplot(x="Column", y="Value", data=long, color="blue", size=2, jitter=True, label='CSPRNG')
+    sns.stripplot(x="Column", y="Value", data=long2, color="red", size=2, jitter=True, label='Current')
+    means = combined.mean()
+    for i, col in enumerate(combined.columns):
+        plt.hlines(y=means[col], xmin=i-0.3, xmax=i+0.3, colors='black', linewidth=3)
+    plt.ylim(0,y_lim)
+    plt.title(f"N={len(df_list)} Boostraps of CSPRNG assigned combinations")
+    plt.ylabel(row_name)
+    plt.xlabel('Ball Number')
+    plt.legend([],[], frameon=False)
+    plt.show()
+    return
+    
+if __name__=='__main__':
+    data_list=[140,140,140,125,105,90,75,60,45,30,20,15,10,5]
+    pre_2019_odds=[250,199,156,119,88,63,43,28,17,11,8,7,6,5]
+    a=create_combo_df(create_lottery_combos(), data_list)
+    b=sum_individual_numbers(a)
+    c=calculate_percent(b)
+    d=b.T
+    e=odds_tables_wrapper_standard(create_lottery_combos(), data_list)
+    # native_odds=
+    f=create_combo_df(create_lottery_combos(), pre_2019_odds)
+    g=sum_individual_numbers(f)
+    h=calculate_percent(g)
+    i=h.T
+    j=bootstrap_random(1000, data_list)
+    strip_and_box_plots(j,e,'Shannon Free Energy',4)
+    # j=randomize_combinations(create_lottery_combos(), data_list)
+    # j.to_csv(r'G:\My Drive\NBA_Sloan\lottery_randomization_table.csv', index=True)
+    # secret_list=[]
+    # for x in range(0,1000):
+    #     secret_list.append(odds_tables_wrapper(create_lottery_combos(), data_list))
+    # print(len(secret_list))
+    # s.to_csv(r'G:\My Drive\NBA_Sloan\lottery_secrets_randomization_combinations.csv', index=True)
+    # k=sum_individual_numbers(j)
+    # z=sum_individual_numbers(s)
+    # zz=calculate_percent(z)
+    # zzz=zz.T
+    # zzz.to_csv(r'G:\My Drive\NBA_Sloan\lottery_secrets_randomization_table_percent.csv', index=True)
+    # l=calculate_percent(k)
+    # m=k.T
+    # n=l.T
+    # o=n-e
+    # p=a.iloc[:140]
+    # q=p.drop('draft_position', axis=1)
+    # r=NBA.prob_wrapper(q,list(range(1,15)),np.array([1]*7+[1.1]*7))
+    
+    # k.to_csv(r'G:\My Drive\NBA_Sloan\lottery_ramdon_combo_sum.csv', index=True)
+    # l.to_csv(r'G:\My Drive\NBA_Sloan\lottery_ramdon_combo_sum_percent.csv', index=True)
+    # m.to_csv(r'G:\My Drive\NBA_Sloan\lottery_ramdon_combo_sum_transform.csv', index=True)
+    # n.to_csv(r'G:\My Drive\NBA_Sloan\lottery_ramdon_combo_sum_percent_transform.csv', index=True)
+    # o.to_csv(r'G:\My Drive\NBA_Sloan\lottery_odds_delta_current_vs_1_randomization.csv', index=True)
