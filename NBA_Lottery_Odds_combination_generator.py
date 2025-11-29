@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
 """
+Created on Sat Nov 29 10:22:29 2025
+
+@author: Chris
+"""
+# -*- coding: utf-8 -*-
+"""
 Created on Thu Sep 18 10:19:14 2025
 
 @author: 14153
@@ -147,6 +153,19 @@ def strip_and_box_plots(df_list, original_df, row, y_lim):
     # Overlay stripplot (points for each DataFrame)
     sns.stripplot(x="Column", y="Value", data=long, color="blue", size=2, jitter=True, label='CSPRNG')
     sns.stripplot(x="Column", y="Value", data=long2, color="red", size=2, jitter=True, label='Current')
+    # === Add connecting line for the original run ===
+    long2_sorted = long2.copy()
+    long2_sorted["Column_num"] = long2_sorted["Column"].astype(int)
+    long2_sorted["Column_num"]-=1
+    long2_sorted = long2_sorted.sort_values("Column_num")
+    
+    plt.plot(
+        long2_sorted["Column_num"],
+        long2_sorted["Value"],
+        linewidth=1.5,
+        color="red"
+    )
+# ================================================
     means = combined.mean()
     for i, col in enumerate(combined.columns):
         plt.hlines(y=means[col], xmin=i-0.3, xmax=i+0.3, colors='black', linewidth=3)
@@ -155,6 +174,8 @@ def strip_and_box_plots(df_list, original_df, row, y_lim):
     plt.ylabel(row_name)
     plt.xlabel('Ball Number')
     plt.legend([],[], frameon=False)
+    file_name=r'G:\My Drive\NBA_Sloan\Graphs/'+row+'_lottery_V2.png'
+    plt.savefig(file_name, dpi=500, bbox_inches='tight')
     plt.show()
     return
     
@@ -173,6 +194,7 @@ if __name__=='__main__':
     i=h.T
     j=bootstrap_random(1000, data_list)
     strip_and_box_plots(j,e,'Shannon Free Energy',4)
+    strip_and_box_plots(j,e,'Hill Number', 14)
     # j=randomize_combinations(create_lottery_combos(), data_list)
     # j.to_csv(r'G:\My Drive\NBA_Sloan\lottery_randomization_table.csv', index=True)
     # secret_list=[]
