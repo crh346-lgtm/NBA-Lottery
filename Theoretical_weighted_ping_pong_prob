@@ -1,0 +1,58 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Sep 25 09:47:13 2025
+
+@author: 14153
+"""
+
+import itertools
+import math
+import numpy as np
+
+def combo_probability(elements, weights, combo):
+    """
+    Compute exact probability that `combo` (unordered iterable of k elements)
+    is the selected set when sampling k items sequentially without replacement
+    with drawing probabilities proportional to weights.
+    elements: sequence of all n elements
+    weights:  array-like of length n
+    combo:    iterable of k elements (subset of elements)
+    """
+    elements = list(elements)
+    weights = np.asarray(weights, dtype=float)
+    idx = {e: i for i, e in enumerate(elements)}
+    combo = list(combo)
+    k = len(combo)
+    if any(e not in idx for e in combo):
+        raise ValueError("combo must be subset of elements")
+    total_prob = 0.0
+    W0 = weights.sum()
+
+    # iterate over all permutations of the combo (k! terms)
+    for perm in itertools.permutations(combo, k):
+        prob = 1.0
+        remaining_weight = W0
+        for item in perm:
+            wi = weights[idx[item]]
+            prob *= wi / remaining_weight
+            remaining_weight -= wi
+        total_prob += prob
+    return total_prob
+
+def prob_wrapper(combo_df, elements, weights):
+    tot_prob_sum=0
+    for row in combo_df.itertuples(index=False):
+        row_list = list(row)
+        # print(row_list)
+        tot_prob_sum+=combo_probability(elements, weights, row_list)
+        print(tot_prob_sum)
+    return tot_prob_sum
+
+
+
+# quick test
+elements = list(range(1, 15))
+weights = np.array([1] + [1]*13)
+combo = {1, 2, 3, 4}
+print("Exact prob of", combo, "=", combo_probability(elements, weights, combo))
+
